@@ -11,6 +11,8 @@ import sys
 # Add the paths to the services
 sys.path.insert(0, os.path.abspath('../customers_service'))
 sys.path.insert(0, os.path.abspath('../inventory_service'))
+sys.path.insert(0, os.path.abspath('../reviews_service'))
+sys.path.insert(0, os.path.abspath('../sales_service'))
 
 project = 'E-Commerce-Roni-Bahaa'
 copyright = '2024, Roni-Bahaa'

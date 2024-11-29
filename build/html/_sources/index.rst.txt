@@ -16,4 +16,6 @@ documentation for details.
 
    customers_service
    inventory_service
+   reviews_service
+   sales_service
 

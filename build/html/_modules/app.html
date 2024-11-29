@@ -43,6 +43,8 @@
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="../customers_service.html">Customers Service</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../inventory_service.html">Inventory Service</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../reviews_service.html">Reviews Service</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../sales_service.html">Sales Service</a></li>
 </ul>
 
         </div>
@@ -74,8 +76,9 @@
 
 <span class="kn">from</span> <span class="nn">flask</span> <span class="kn">import</span> <span class="n">Flask</span><span class="p">,</span> <span class="n">request</span><span class="p">,</span> <span class="n">jsonify</span>
 <span class="kn">from</span> <span class="nn">config</span> <span class="kn">import</span> <span class="n">Config</span>
-<span class="kn">from</span> <span class="nn">functools</span> <span class="kn">import</span> <span class="n">wraps</span>
-<span class="kn">from</span> <span class="nn">extensions</span> <span class="kn">import</span> <span class="n">db</span><span class="p">,</span> <span class="n">ma</span>  <span class="c1"># Import from extensions</span>
+<span class="kn">from</span> <span class="nn">extensions</span> <span class="kn">import</span> <span class="n">db</span><span class="p">,</span> <span class="n">ma</span>
+<span class="kn">from</span> <span class="nn">models</span> <span class="kn">import</span> <span class="n">Sale</span><span class="p">,</span> <span class="n">sale_schema</span><span class="p">,</span> <span class="n">sales_schema</span>
+<span class="kn">import</span> <span class="nn">requests</span>
 
 <span class="n">app</span> <span class="o">=</span> <span class="n">Flask</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
 <span class="n">app</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">from_object</span><span class="p">(</span><span class="n">Config</span><span class="p">)</span>
@@ -83,206 +86,193 @@
 <span class="n">db</span><span class="o">.</span><span class="n">init_app</span><span class="p">(</span><span class="n">app</span><span class="p">)</span>
 <span class="n">ma</span><span class="o">.</span><span class="n">init_app</span><span class="p">(</span><span class="n">app</span><span class="p">)</span>
 
-<span class="c1"># Import models after initializing db and ma</span>
-<span class="kn">from</span> <span class="nn">models</span> <span class="kn">import</span> <span class="n">Item</span><span class="p">,</span> <span class="n">ItemSchema</span><span class="p">,</span> <span class="n">item_schema</span><span class="p">,</span> <span class="n">items_schema</span>
+<span class="c1"># Constants for other services&#39; URLs</span>
+<span class="n">INVENTORY_SERVICE_URL</span> <span class="o">=</span> <span class="s1">&#39;http://localhost:5001&#39;</span>
+<span class="n">CUSTOMERS_SERVICE_URL</span> <span class="o">=</span> <span class="s1">&#39;http://localhost:5000&#39;</span>  <span class="c1"># Adjust the port if necessary</span>
 
-<div class="viewcode-block" id="require_api_key">
-<a class="viewcode-back" href="../inventory_service.html#app.require_api_key">[docs]</a>
-<span class="k">def</span> <span class="nf">require_api_key</span><span class="p">(</span><span class="n">f</span><span class="p">):</span>
-    <span class="nd">@wraps</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
-    <span class="k">def</span> <span class="nf">decorated</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-        <span class="c1"># Simple API key check (replace with a real authentication mechanism)</span>
-        <span class="k">if</span> <span class="n">request</span><span class="o">.</span><span class="n">headers</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;x-api-key&#39;</span><span class="p">)</span> <span class="o">==</span> <span class="s1">&#39;your_api_key&#39;</span><span class="p">:</span>
-            <span class="k">return</span> <span class="n">f</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+<div class="viewcode-block" id="display_available_goods">
+<a class="viewcode-back" href="../sales_service.html#app.display_available_goods">[docs]</a>
+<span class="nd">@app</span><span class="o">.</span><span class="n">route</span><span class="p">(</span><span class="s1">&#39;/goods&#39;</span><span class="p">,</span> <span class="n">methods</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;GET&#39;</span><span class="p">])</span>
+<span class="k">def</span> <span class="nf">display_available_goods</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Display available goods with their names and prices.</span>
+
+<span class="sd">    Fetches goods from the Inventory Service and filters their details </span>
+<span class="sd">    to include only name, price, and ID.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        list: A JSON list of goods with `id`, `name`, and `price`.</span>
+<span class="sd">        status_code (int): HTTP status code, 200 for success or an error code.</span>
+<span class="sd">    &quot;&quot;&quot;</span> 
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">response</span> <span class="o">=</span> <span class="n">requests</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">INVENTORY_SERVICE_URL</span><span class="si">}</span><span class="s1">/items&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">response</span><span class="o">.</span><span class="n">status_code</span> <span class="o">==</span> <span class="mi">200</span><span class="p">:</span>
+            <span class="n">items</span> <span class="o">=</span> <span class="n">response</span><span class="o">.</span><span class="n">json</span><span class="p">()</span>
+            <span class="c1"># Extract name and price</span>
+            <span class="n">goods</span> <span class="o">=</span> <span class="p">[{</span><span class="s1">&#39;id&#39;</span><span class="p">:</span> <span class="n">item</span><span class="p">[</span><span class="s1">&#39;id&#39;</span><span class="p">],</span> <span class="s1">&#39;name&#39;</span><span class="p">:</span> <span class="n">item</span><span class="p">[</span><span class="s1">&#39;name&#39;</span><span class="p">],</span> <span class="s1">&#39;price&#39;</span><span class="p">:</span> <span class="n">item</span><span class="p">[</span><span class="s1">&#39;price&#39;</span><span class="p">]}</span> <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="n">items</span><span class="p">]</span>
+            <span class="k">return</span> <span class="n">jsonify</span><span class="p">(</span><span class="n">goods</span><span class="p">),</span> <span class="mi">200</span>
         <span class="k">else</span><span class="p">:</span>
-            <span class="k">return</span> <span class="n">jsonify</span><span class="p">({</span><span class="s1">&#39;message&#39;</span><span class="p">:</span> <span class="s1">&#39;Unauthorized&#39;</span><span class="p">}),</span> <span class="mi">401</span>
-    <span class="k">return</span> <span class="n">decorated</span></div>
+            <span class="k">return</span> <span class="n">jsonify</span><span class="p">({</span><span class="s1">&#39;message&#39;</span><span class="p">:</span> <span class="s1">&#39;Unable to fetch goods&#39;</span><span class="p">}),</span> <span class="mi">500</span>
+    <span class="k">except</span> <span class="n">requests</span><span class="o">.</span><span class="n">exceptions</span><span class="o">.</span><span class="n">ConnectionError</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">jsonify</span><span class="p">({</span><span class="s1">&#39;message&#39;</span><span class="p">:</span> <span class="s1">&#39;Inventory Service is not available&#39;</span><span class="p">}),</span> <span class="mi">503</span></div>
 
 
-<div class="viewcode-block" id="add_item">
-<a class="viewcode-back" href="../inventory_service.html#app.add_item">[docs]</a>
-<span class="nd">@app</span><span class="o">.</span><span class="n">route</span><span class="p">(</span><span class="s1">&#39;/items&#39;</span><span class="p">,</span> <span class="n">methods</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;POST&#39;</span><span class="p">])</span>
-<span class="nd">@require_api_key</span>
-<span class="k">def</span> <span class="nf">add_item</span><span class="p">():</span>
+<div class="viewcode-block" id="get_goods_details">
+<a class="viewcode-back" href="../sales_service.html#app.get_goods_details">[docs]</a>
+<span class="nd">@app</span><span class="o">.</span><span class="n">route</span><span class="p">(</span><span class="s1">&#39;/goods/&lt;int:item_id&gt;&#39;</span><span class="p">,</span> <span class="n">methods</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;GET&#39;</span><span class="p">])</span>
+<span class="k">def</span> <span class="nf">get_goods_details</span><span class="p">(</span><span class="n">item_id</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Add a new item to the inventory.</span>
+<span class="sd">    Get detailed information about a specific good.</span>
 
-<span class="sd">    This endpoint allows authorized users to add a new item to the inventory.</span>
-<span class="sd">    </span>
-<span class="sd">    Parameters:</span>
-<span class="sd">        - JSON body:</span>
-<span class="sd">            - name (str): The name of the item.</span>
-<span class="sd">            - category (str): The category of the item (e.g., food, clothes, accessories, electronics).</span>
-<span class="sd">            - price (float): The price of the item.</span>
-<span class="sd">            - description (str, optional): A description of the item.</span>
-<span class="sd">            - stock_count (int): The number of items available in stock.</span>
+<span class="sd">    URL parameter:</span>
+<span class="sd">    - item_id: ID of the item</span>
 
 <span class="sd">    Returns:</span>
-<span class="sd">        - 201 Created: On successful addition of the item, with the item details in JSON format.</span>
-<span class="sd">        - 400 Bad Request: If any required fields are missing or invalid.</span>
+<span class="sd">    - 200: Item details</span>
+<span class="sd">    - 404: Item not found</span>
+<span class="sd">    - 500: Unable to fetch item details</span>
+<span class="sd">    - 503: Inventory Service is not available</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="n">data</span> <span class="o">=</span> <span class="n">request</span><span class="o">.</span><span class="n">get_json</span><span class="p">()</span>
-    <span class="n">name</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;name&#39;</span><span class="p">)</span>
-    <span class="n">category</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;category&#39;</span><span class="p">)</span>
-    <span class="n">price</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;price&#39;</span><span class="p">)</span>
-    <span class="n">description</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;description&#39;</span><span class="p">)</span>
-    <span class="n">stock_count</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;stock_count&#39;</span><span class="p">)</span>
-
-    <span class="k">if</span> <span class="ow">not</span> <span class="nb">all</span><span class="p">([</span><span class="n">name</span><span class="p">,</span> <span class="n">category</span><span class="p">,</span> <span class="n">price</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">,</span> <span class="n">stock_count</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">]):</span>
-        <span class="k">return</span> <span class="n">jsonify</span><span class="p">({</span><span class="s1">&#39;message&#39;</span><span class="p">:</span> <span class="s1">&#39;Missing required fields&#39;</span><span class="p">}),</span> <span class="mi">400</span>
-
-    <span class="k">if</span> <span class="n">category</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;food&#39;</span><span class="p">,</span> <span class="s1">&#39;clothes&#39;</span><span class="p">,</span> <span class="s1">&#39;accessories&#39;</span><span class="p">,</span> <span class="s1">&#39;electronics&#39;</span><span class="p">]:</span>
-        <span class="k">return</span> <span class="n">jsonify</span><span class="p">({</span><span class="s1">&#39;message&#39;</span><span class="p">:</span> <span class="s1">&#39;Invalid category&#39;</span><span class="p">}),</span> <span class="mi">400</span>
-
     <span class="k">try</span><span class="p">:</span>
-        <span class="n">price</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">price</span><span class="p">)</span>
-        <span class="n">stock_count</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">stock_count</span><span class="p">)</span>
-    <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>
-        <span class="k">return</span> <span class="n">jsonify</span><span class="p">({</span><span class="s1">&#39;message&#39;</span><span class="p">:</span> <span class="s1">&#39;Invalid data type for price or stock_count&#39;</span><span class="p">}),</span> <span class="mi">400</span>
-
-    <span class="n">new_item</span> <span class="o">=</span> <span class="n">Item</span><span class="p">(</span>
-        <span class="n">name</span><span class="o">=</span><span class="n">name</span><span class="p">,</span>
-        <span class="n">category</span><span class="o">=</span><span class="n">category</span><span class="p">,</span>
-        <span class="n">price</span><span class="o">=</span><span class="n">price</span><span class="p">,</span>
-        <span class="n">description</span><span class="o">=</span><span class="n">description</span><span class="p">,</span>
-        <span class="n">stock_count</span><span class="o">=</span><span class="n">stock_count</span>
-    <span class="p">)</span>
-    <span class="n">db</span><span class="o">.</span><span class="n">session</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">new_item</span><span class="p">)</span>
-    <span class="n">db</span><span class="o">.</span><span class="n">session</span><span class="o">.</span><span class="n">commit</span><span class="p">()</span>
-    <span class="k">return</span> <span class="n">item_schema</span><span class="o">.</span><span class="n">jsonify</span><span class="p">(</span><span class="n">new_item</span><span class="p">),</span> <span class="mi">201</span></div>
+        <span class="n">response</span> <span class="o">=</span> <span class="n">requests</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">INVENTORY_SERVICE_URL</span><span class="si">}</span><span class="s1">/items/</span><span class="si">{</span><span class="n">item_id</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">response</span><span class="o">.</span><span class="n">status_code</span> <span class="o">==</span> <span class="mi">200</span><span class="p">:</span>
+            <span class="n">item</span> <span class="o">=</span> <span class="n">response</span><span class="o">.</span><span class="n">json</span><span class="p">()</span>
+            <span class="k">return</span> <span class="n">jsonify</span><span class="p">(</span><span class="n">item</span><span class="p">),</span> <span class="mi">200</span>
+        <span class="k">elif</span> <span class="n">response</span><span class="o">.</span><span class="n">status_code</span> <span class="o">==</span> <span class="mi">404</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">jsonify</span><span class="p">({</span><span class="s1">&#39;message&#39;</span><span class="p">:</span> <span class="s1">&#39;Item not found&#39;</span><span class="p">}),</span> <span class="mi">404</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">jsonify</span><span class="p">({</span><span class="s1">&#39;message&#39;</span><span class="p">:</span> <span class="s1">&#39;Unable to fetch item details&#39;</span><span class="p">}),</span> <span class="mi">500</span>
+    <span class="k">except</span> <span class="n">requests</span><span class="o">.</span><span class="n">exceptions</span><span class="o">.</span><span class="n">ConnectionError</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">jsonify</span><span class="p">({</span><span class="s1">&#39;message&#39;</span><span class="p">:</span> <span class="s1">&#39;Inventory Service is not available&#39;</span><span class="p">}),</span> <span class="mi">503</span></div>
 
 
-<div class="viewcode-block" id="get_items">
-<a class="viewcode-back" href="../inventory_service.html#app.get_items">[docs]</a>
-<span class="nd">@app</span><span class="o">.</span><span class="n">route</span><span class="p">(</span><span class="s1">&#39;/items&#39;</span><span class="p">,</span> <span class="n">methods</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;GET&#39;</span><span class="p">])</span>
-<span class="k">def</span> <span class="nf">get_items</span><span class="p">():</span>
+<div class="viewcode-block" id="process_sale">
+<a class="viewcode-back" href="../sales_service.html#app.process_sale">[docs]</a>
+<span class="nd">@app</span><span class="o">.</span><span class="n">route</span><span class="p">(</span><span class="s1">&#39;/sales&#39;</span><span class="p">,</span> <span class="n">methods</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;POST&#39;</span><span class="p">])</span>
+<span class="k">def</span> <span class="nf">process_sale</span><span class="p">():</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Get all items from the inventory.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-    <span class="n">all_items</span> <span class="o">=</span> <span class="n">Item</span><span class="o">.</span><span class="n">query</span><span class="o">.</span><span class="n">all</span><span class="p">()</span>
-    <span class="n">result</span> <span class="o">=</span> <span class="n">items_schema</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="n">all_items</span><span class="p">)</span>
-    <span class="k">return</span> <span class="n">jsonify</span><span class="p">(</span><span class="n">result</span><span class="p">),</span> <span class="mi">200</span></div>
+<span class="sd">    Process a sale when a customer purchases a good.</span>
 
-
-<div class="viewcode-block" id="get_item">
-<a class="viewcode-back" href="../inventory_service.html#app.get_item">[docs]</a>
-<span class="nd">@app</span><span class="o">.</span><span class="n">route</span><span class="p">(</span><span class="s1">&#39;/items/&lt;int:item_id&gt;&#39;</span><span class="p">,</span> <span class="n">methods</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;GET&#39;</span><span class="p">])</span>
-<span class="k">def</span> <span class="nf">get_item</span><span class="p">(</span><span class="n">item_id</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Get details of a specific item.</span>
-
-<span class="sd">    This endpoint retrieves the details of an item using its unique ID.</span>
-
-<span class="sd">    Parameters:</span>
-<span class="sd">        - item_id (int): The unique ID of the item.</span>
+<span class="sd">    Request JSON should contain:</span>
+<span class="sd">    - username: Username of the customer</span>
+<span class="sd">    - item_id: ID of the item being purchased</span>
+<span class="sd">    - quantity: Quantity of the item being purchased (default is 1)</span>
 
 <span class="sd">    Returns:</span>
-<span class="sd">        - 200 OK: Item details in JSON format.</span>
-<span class="sd">        - 404 Not Found: If no item exists with the given ID.</span>
+<span class="sd">    - 200: Sale processed successfully</span>
+<span class="sd">    - 400: Missing required fields, insufficient stock, or insufficient balance</span>
+<span class="sd">    - 404: Item or customer not found</span>
+<span class="sd">    - 500: Failed to deduct balance or stock</span>
+<span class="sd">    - 503: Inventory Service is not available</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="n">item</span> <span class="o">=</span> <span class="n">Item</span><span class="o">.</span><span class="n">query</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">item_id</span><span class="p">)</span>
-    <span class="k">if</span> <span class="ow">not</span> <span class="n">item</span><span class="p">:</span>
-        <span class="k">return</span> <span class="n">jsonify</span><span class="p">({</span><span class="s1">&#39;message&#39;</span><span class="p">:</span> <span class="s1">&#39;Item not found&#39;</span><span class="p">}),</span> <span class="mi">404</span>
-    <span class="k">return</span> <span class="n">item_schema</span><span class="o">.</span><span class="n">jsonify</span><span class="p">(</span><span class="n">item</span><span class="p">),</span> <span class="mi">200</span></div>
-
-
-<div class="viewcode-block" id="update_item">
-<a class="viewcode-back" href="../inventory_service.html#app.update_item">[docs]</a>
-<span class="nd">@app</span><span class="o">.</span><span class="n">route</span><span class="p">(</span><span class="s1">&#39;/items/&lt;int:item_id&gt;&#39;</span><span class="p">,</span> <span class="n">methods</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;PUT&#39;</span><span class="p">])</span>
-<span class="nd">@require_api_key</span>
-<span class="k">def</span> <span class="nf">update_item</span><span class="p">(</span><span class="n">item_id</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Update an existing item.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-    <span class="n">item</span> <span class="o">=</span> <span class="n">Item</span><span class="o">.</span><span class="n">query</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">item_id</span><span class="p">)</span>
-    <span class="k">if</span> <span class="ow">not</span> <span class="n">item</span><span class="p">:</span>
-        <span class="k">return</span> <span class="n">jsonify</span><span class="p">({</span><span class="s1">&#39;message&#39;</span><span class="p">:</span> <span class="s1">&#39;Item not found&#39;</span><span class="p">}),</span> <span class="mi">404</span>
-
     <span class="n">data</span> <span class="o">=</span> <span class="n">request</span><span class="o">.</span><span class="n">get_json</span><span class="p">()</span>
-    <span class="n">name</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;name&#39;</span><span class="p">,</span> <span class="n">item</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
-    <span class="n">category</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;category&#39;</span><span class="p">,</span> <span class="n">item</span><span class="o">.</span><span class="n">category</span><span class="p">)</span>
-    <span class="n">price</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;price&#39;</span><span class="p">,</span> <span class="n">item</span><span class="o">.</span><span class="n">price</span><span class="p">)</span>
-    <span class="n">description</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;description&#39;</span><span class="p">,</span> <span class="n">item</span><span class="o">.</span><span class="n">description</span><span class="p">)</span>
-    <span class="n">stock_count</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;stock_count&#39;</span><span class="p">,</span> <span class="n">item</span><span class="o">.</span><span class="n">stock_count</span><span class="p">)</span>
-
-    <span class="k">if</span> <span class="n">category</span> <span class="ow">and</span> <span class="n">category</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;food&#39;</span><span class="p">,</span> <span class="s1">&#39;clothes&#39;</span><span class="p">,</span> <span class="s1">&#39;accessories&#39;</span><span class="p">,</span> <span class="s1">&#39;electronics&#39;</span><span class="p">]:</span>
-        <span class="k">return</span> <span class="n">jsonify</span><span class="p">({</span><span class="s1">&#39;message&#39;</span><span class="p">:</span> <span class="s1">&#39;Invalid category&#39;</span><span class="p">}),</span> <span class="mi">400</span>
-
-    <span class="k">try</span><span class="p">:</span>
-        <span class="n">price</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">price</span><span class="p">)</span>
-        <span class="n">stock_count</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">stock_count</span><span class="p">)</span>
-    <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>
-        <span class="k">return</span> <span class="n">jsonify</span><span class="p">({</span><span class="s1">&#39;message&#39;</span><span class="p">:</span> <span class="s1">&#39;Invalid data type for price or stock_count&#39;</span><span class="p">}),</span> <span class="mi">400</span>
-
-    <span class="n">item</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="n">name</span>
-    <span class="n">item</span><span class="o">.</span><span class="n">category</span> <span class="o">=</span> <span class="n">category</span>
-    <span class="n">item</span><span class="o">.</span><span class="n">price</span> <span class="o">=</span> <span class="n">price</span>
-    <span class="n">item</span><span class="o">.</span><span class="n">description</span> <span class="o">=</span> <span class="n">description</span>
-    <span class="n">item</span><span class="o">.</span><span class="n">stock_count</span> <span class="o">=</span> <span class="n">stock_count</span>
-
-    <span class="n">db</span><span class="o">.</span><span class="n">session</span><span class="o">.</span><span class="n">commit</span><span class="p">()</span>
-    <span class="k">return</span> <span class="n">item_schema</span><span class="o">.</span><span class="n">jsonify</span><span class="p">(</span><span class="n">item</span><span class="p">),</span> <span class="mi">200</span></div>
-
-
-<div class="viewcode-block" id="delete_item">
-<a class="viewcode-back" href="../inventory_service.html#app.delete_item">[docs]</a>
-<span class="nd">@app</span><span class="o">.</span><span class="n">route</span><span class="p">(</span><span class="s1">&#39;/items/&lt;int:item_id&gt;&#39;</span><span class="p">,</span> <span class="n">methods</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;DELETE&#39;</span><span class="p">])</span>
-<span class="nd">@require_api_key</span>
-<span class="k">def</span> <span class="nf">delete_item</span><span class="p">(</span><span class="n">item_id</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Delete an item from the inventory.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-    <span class="n">item</span> <span class="o">=</span> <span class="n">Item</span><span class="o">.</span><span class="n">query</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">item_id</span><span class="p">)</span>
-    <span class="k">if</span> <span class="ow">not</span> <span class="n">item</span><span class="p">:</span>
-        <span class="k">return</span> <span class="n">jsonify</span><span class="p">({</span><span class="s1">&#39;message&#39;</span><span class="p">:</span> <span class="s1">&#39;Item not found&#39;</span><span class="p">}),</span> <span class="mi">404</span>
-
-    <span class="n">db</span><span class="o">.</span><span class="n">session</span><span class="o">.</span><span class="n">delete</span><span class="p">(</span><span class="n">item</span><span class="p">)</span>
-    <span class="n">db</span><span class="o">.</span><span class="n">session</span><span class="o">.</span><span class="n">commit</span><span class="p">()</span>
-    <span class="k">return</span> <span class="n">jsonify</span><span class="p">({</span><span class="s1">&#39;message&#39;</span><span class="p">:</span> <span class="s1">&#39;Item deleted successfully&#39;</span><span class="p">}),</span> <span class="mi">200</span></div>
-
-
-<div class="viewcode-block" id="deduct_item">
-<a class="viewcode-back" href="../inventory_service.html#app.deduct_item">[docs]</a>
-<span class="nd">@app</span><span class="o">.</span><span class="n">route</span><span class="p">(</span><span class="s1">&#39;/items/&lt;int:item_id&gt;/deduct&#39;</span><span class="p">,</span> <span class="n">methods</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;POST&#39;</span><span class="p">])</span>
-<span class="nd">@require_api_key</span>
-<span class="k">def</span> <span class="nf">deduct_item</span><span class="p">(</span><span class="n">item_id</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Deduct stock count for an item.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-    <span class="n">item</span> <span class="o">=</span> <span class="n">Item</span><span class="o">.</span><span class="n">query</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">item_id</span><span class="p">)</span>
-    <span class="k">if</span> <span class="ow">not</span> <span class="n">item</span><span class="p">:</span>
-        <span class="k">return</span> <span class="n">jsonify</span><span class="p">({</span><span class="s1">&#39;message&#39;</span><span class="p">:</span> <span class="s1">&#39;Item not found&#39;</span><span class="p">}),</span> <span class="mi">404</span>
-
-    <span class="n">data</span> <span class="o">=</span> <span class="n">request</span><span class="o">.</span><span class="n">get_json</span><span class="p">()</span>
+    <span class="n">username</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;username&#39;</span><span class="p">)</span>
+    <span class="n">item_id</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;item_id&#39;</span><span class="p">)</span>
     <span class="n">quantity</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;quantity&#39;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
 
+    <span class="c1"># Validate input</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">all</span><span class="p">([</span><span class="n">username</span><span class="p">,</span> <span class="n">item_id</span><span class="p">]):</span>
+        <span class="k">return</span> <span class="n">jsonify</span><span class="p">({</span><span class="s1">&#39;message&#39;</span><span class="p">:</span> <span class="s1">&#39;Username and item_id are required&#39;</span><span class="p">}),</span> <span class="mi">400</span>
+
     <span class="k">try</span><span class="p">:</span>
-        <span class="n">quantity</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">quantity</span><span class="p">)</span>
-    <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>
-        <span class="k">return</span> <span class="n">jsonify</span><span class="p">({</span><span class="s1">&#39;message&#39;</span><span class="p">:</span> <span class="s1">&#39;Invalid quantity&#39;</span><span class="p">}),</span> <span class="mi">400</span>
+        <span class="c1"># Step 1: Get item details from Inventory Service</span>
+        <span class="n">item_response</span> <span class="o">=</span> <span class="n">requests</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">INVENTORY_SERVICE_URL</span><span class="si">}</span><span class="s1">/items/</span><span class="si">{</span><span class="n">item_id</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">item_response</span><span class="o">.</span><span class="n">status_code</span> <span class="o">!=</span> <span class="mi">200</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">jsonify</span><span class="p">({</span><span class="s1">&#39;message&#39;</span><span class="p">:</span> <span class="s1">&#39;Item not found&#39;</span><span class="p">}),</span> <span class="mi">404</span>
+        <span class="n">item</span> <span class="o">=</span> <span class="n">item_response</span><span class="o">.</span><span class="n">json</span><span class="p">()</span>
 
-    <span class="k">if</span> <span class="n">quantity</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">:</span>
-        <span class="k">return</span> <span class="n">jsonify</span><span class="p">({</span><span class="s1">&#39;message&#39;</span><span class="p">:</span> <span class="s1">&#39;Quantity must be positive&#39;</span><span class="p">}),</span> <span class="mi">400</span>
+        <span class="c1"># Step 2: Check stock availability</span>
+        <span class="k">if</span> <span class="n">item</span><span class="p">[</span><span class="s1">&#39;stock_count&#39;</span><span class="p">]</span> <span class="o">&lt;</span> <span class="n">quantity</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">jsonify</span><span class="p">({</span><span class="s1">&#39;message&#39;</span><span class="p">:</span> <span class="s1">&#39;Insufficient stock&#39;</span><span class="p">}),</span> <span class="mi">400</span>
 
-    <span class="k">if</span> <span class="n">item</span><span class="o">.</span><span class="n">stock_count</span> <span class="o">&lt;</span> <span class="n">quantity</span><span class="p">:</span>
-        <span class="k">return</span> <span class="n">jsonify</span><span class="p">({</span><span class="s1">&#39;message&#39;</span><span class="p">:</span> <span class="s1">&#39;Insufficient stock&#39;</span><span class="p">}),</span> <span class="mi">400</span>
+        <span class="c1"># Step 3: Get customer details from Customers Service</span>
+        <span class="n">customer_response</span> <span class="o">=</span> <span class="n">requests</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">CUSTOMERS_SERVICE_URL</span><span class="si">}</span><span class="s1">/customers/</span><span class="si">{</span><span class="n">username</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">customer_response</span><span class="o">.</span><span class="n">status_code</span> <span class="o">!=</span> <span class="mi">200</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">jsonify</span><span class="p">({</span><span class="s1">&#39;message&#39;</span><span class="p">:</span> <span class="s1">&#39;Customer not found&#39;</span><span class="p">}),</span> <span class="mi">404</span>
+        <span class="n">customer</span> <span class="o">=</span> <span class="n">customer_response</span><span class="o">.</span><span class="n">json</span><span class="p">()</span>
 
-    <span class="n">item</span><span class="o">.</span><span class="n">stock_count</span> <span class="o">-=</span> <span class="n">quantity</span>
-    <span class="n">db</span><span class="o">.</span><span class="n">session</span><span class="o">.</span><span class="n">commit</span><span class="p">()</span>
-    <span class="k">return</span> <span class="n">item_schema</span><span class="o">.</span><span class="n">jsonify</span><span class="p">(</span><span class="n">item</span><span class="p">),</span> <span class="mi">200</span></div>
+        <span class="c1"># Mock customer data (since Customers Service is not implemented yet)</span>
+        <span class="n">customer</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;username&#39;</span><span class="p">:</span> <span class="n">username</span><span class="p">,</span> <span class="s1">&#39;balance&#39;</span><span class="p">:</span> <span class="mf">1000.0</span><span class="p">}</span>
+
+        <span class="c1"># Step 4: Check customer balance</span>
+        <span class="n">total_price</span> <span class="o">=</span> <span class="n">item</span><span class="p">[</span><span class="s1">&#39;price&#39;</span><span class="p">]</span> <span class="o">*</span> <span class="n">quantity</span>
+        <span class="c1"># print(f&quot;DEBUG: Customer balance: {customer[&#39;balance&#39;]}, Total price: {total_price}&quot;)  # Debugging</span>
+        <span class="k">if</span> <span class="n">customer</span><span class="p">[</span><span class="s1">&#39;balance&#39;</span><span class="p">]</span> <span class="o">&lt;</span> <span class="nb">round</span><span class="p">(</span><span class="n">total_price</span><span class="p">,</span> <span class="mi">2</span><span class="p">):</span>  <span class="c1"># Use rounding to avoid precision issues</span>
+            <span class="k">return</span> <span class="n">jsonify</span><span class="p">({</span><span class="s1">&#39;message&#39;</span><span class="p">:</span> <span class="s1">&#39;Insufficient balance&#39;</span><span class="p">}),</span> <span class="mi">400</span>
+
+
+        <span class="c1"># Step 5: Deduct balance from customer</span>
+        <span class="n">deduct_balance_response</span> <span class="o">=</span> <span class="n">requests</span><span class="o">.</span><span class="n">post</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">CUSTOMERS_SERVICE_URL</span><span class="si">}</span><span class="s1">/customers/</span><span class="si">{</span><span class="n">username</span><span class="si">}</span><span class="s1">/deduct&#39;</span><span class="p">,</span>
+            <span class="n">json</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;amount&#39;</span><span class="p">:</span> <span class="n">total_price</span><span class="p">}</span>
+        <span class="p">)</span>
+        <span class="k">if</span> <span class="n">deduct_balance_response</span><span class="o">.</span><span class="n">status_code</span> <span class="o">!=</span> <span class="mi">200</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">jsonify</span><span class="p">({</span><span class="s1">&#39;message&#39;</span><span class="p">:</span> <span class="s1">&#39;Failed to deduct balance&#39;</span><span class="p">}),</span> <span class="mi">500</span>
+
+        <span class="c1"># Step 6: Deduct stock from Inventory</span>
+        <span class="n">deduct_stock_response</span> <span class="o">=</span> <span class="n">requests</span><span class="o">.</span><span class="n">post</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">INVENTORY_SERVICE_URL</span><span class="si">}</span><span class="s1">/items/</span><span class="si">{</span><span class="n">item_id</span><span class="si">}</span><span class="s1">/deduct&#39;</span><span class="p">,</span>
+            <span class="n">json</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;quantity&#39;</span><span class="p">:</span> <span class="n">quantity</span><span class="p">},</span>
+            <span class="n">headers</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;x-api-key&#39;</span><span class="p">:</span> <span class="s1">&#39;your_api_key&#39;</span><span class="p">}</span>  <span class="c1"># Use the API key for Inventory Service</span>
+        <span class="p">)</span>
+        <span class="k">if</span> <span class="n">deduct_stock_response</span><span class="o">.</span><span class="n">status_code</span> <span class="o">!=</span> <span class="mi">200</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">jsonify</span><span class="p">({</span><span class="s1">&#39;message&#39;</span><span class="p">:</span> <span class="s1">&#39;Failed to deduct stock&#39;</span><span class="p">}),</span> <span class="mi">500</span>
+
+        <span class="c1"># Step 7: Record the sale</span>
+        <span class="n">new_sale</span> <span class="o">=</span> <span class="n">Sale</span><span class="p">(</span>
+            <span class="n">username</span><span class="o">=</span><span class="n">username</span><span class="p">,</span>
+            <span class="n">item_id</span><span class="o">=</span><span class="n">item_id</span><span class="p">,</span>
+            <span class="n">quantity</span><span class="o">=</span><span class="n">quantity</span><span class="p">,</span>
+            <span class="n">total_price</span><span class="o">=</span><span class="n">total_price</span>
+        <span class="p">)</span>
+        <span class="n">db</span><span class="o">.</span><span class="n">session</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">new_sale</span><span class="p">)</span>
+        <span class="n">db</span><span class="o">.</span><span class="n">session</span><span class="o">.</span><span class="n">commit</span><span class="p">()</span>
+
+        <span class="k">return</span> <span class="n">jsonify</span><span class="p">({</span><span class="s1">&#39;message&#39;</span><span class="p">:</span> <span class="s1">&#39;Sale processed successfully&#39;</span><span class="p">}),</span> <span class="mi">200</span>
+
+    <span class="k">except</span> <span class="n">requests</span><span class="o">.</span><span class="n">exceptions</span><span class="o">.</span><span class="n">ConnectionError</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">jsonify</span><span class="p">({</span><span class="s1">&#39;message&#39;</span><span class="p">:</span> <span class="s1">&#39;Inventory Service is not available&#39;</span><span class="p">}),</span> <span class="mi">503</span></div>
+
+
+<div class="viewcode-block" id="get_purchase_history">
+<a class="viewcode-back" href="../sales_service.html#app.get_purchase_history">[docs]</a>
+<span class="nd">@app</span><span class="o">.</span><span class="n">route</span><span class="p">(</span><span class="s1">&#39;/sales/history/&lt;username&gt;&#39;</span><span class="p">,</span> <span class="n">methods</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;GET&#39;</span><span class="p">])</span>
+<span class="k">def</span> <span class="nf">get_purchase_history</span><span class="p">(</span><span class="n">username</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Get the purchase history for a specific customer.</span>
+
+<span class="sd">    URL parameter:</span>
+<span class="sd">    - username: Username of the customer</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">    - 200: List of purchase history</span>
+<span class="sd">    - 404: No purchase history found for the user</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">sales</span> <span class="o">=</span> <span class="n">Sale</span><span class="o">.</span><span class="n">query</span><span class="o">.</span><span class="n">filter_by</span><span class="p">(</span><span class="n">username</span><span class="o">=</span><span class="n">username</span><span class="p">)</span><span class="o">.</span><span class="n">all</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">sales</span><span class="p">:</span>
+        <span class="n">result</span> <span class="o">=</span> <span class="n">sales_schema</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="n">sales</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">jsonify</span><span class="p">(</span><span class="n">result</span><span class="p">),</span> <span class="mi">200</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">jsonify</span><span class="p">({</span><span class="s1">&#39;message&#39;</span><span class="p">:</span> <span class="s1">&#39;No purchase history found for this user&#39;</span><span class="p">}),</span> <span class="mi">404</span></div>
 
 
 <div class="viewcode-block" id="index">
-<a class="viewcode-back" href="../inventory_service.html#app.index">[docs]</a>
+<a class="viewcode-back" href="../sales_service.html#app.index">[docs]</a>
 <span class="nd">@app</span><span class="o">.</span><span class="n">route</span><span class="p">(</span><span class="s1">&#39;/&#39;</span><span class="p">,</span> <span class="n">methods</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;GET&#39;</span><span class="p">])</span>
 <span class="k">def</span> <span class="nf">index</span><span class="p">():</span>
-    <span class="k">return</span> <span class="n">jsonify</span><span class="p">({</span><span class="s1">&#39;message&#39;</span><span class="p">:</span> <span class="s1">&#39;Inventory Service is running&#39;</span><span class="p">}),</span> <span class="mi">200</span></div>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Health check endpoint.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">    - 200: Service is running</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">jsonify</span><span class="p">({</span><span class="s1">&#39;message&#39;</span><span class="p">:</span> <span class="s1">&#39;Sales Service is running&#39;</span><span class="p">}),</span> <span class="mi">200</span></div>
 
 
 <span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s1">&#39;__main__&#39;</span><span class="p">:</span>
     <span class="k">with</span> <span class="n">app</span><span class="o">.</span><span class="n">app_context</span><span class="p">():</span>
         <span class="n">db</span><span class="o">.</span><span class="n">create_all</span><span class="p">()</span>
-    <span class="n">app</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">port</span><span class="o">=</span><span class="mi">5001</span><span class="p">,</span> <span class="n">debug</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">app</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">port</span><span class="o">=</span><span class="mi">5002</span><span class="p">,</span> <span class="n">debug</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 </pre></div>
 
            </div>

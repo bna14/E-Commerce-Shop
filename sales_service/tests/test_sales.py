@@ -1,120 +1,111 @@
+import sys
+import os
 import pytest
+import requests_mock
+
+# Add the parent directory to the Python path
+current_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.abspath(os.path.join(current_dir, '..'))
+sys.path.insert(0, parent_dir)
+
 from app import app, db
-from models import Purchase
-import json
-from unittest.mock import patch
+
 
 @pytest.fixture
 def client():
     app.config['TESTING'] = True
-    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///:memory:'  # In-memory database for testing
+    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///:memory:'  # Use in-memory database
     with app.test_client() as client:
         with app.app_context():
-            db.init_app(app)
+            db.drop_all()  # Reset database
             db.create_all()
         yield client
 
-def test_make_sale_successful(client):
-    # Mock responses from other services
-    with patch('app.requests.get') as mock_get, \
-         patch('app.requests.post') as mock_post:
-        # Mock inventory_service response
-        mock_get.side_effect = [
-            # First get request to inventory_service for good details
-            MockResponse({
-                'id': 1,
-                'name': 'Laptop',
-                'category': 'electronics',
-                'price_per_item': 1000.0,
-                'description': 'High-end laptop',
-                'stock_count': 5
-            }, 200),
-            # Second get request to customers_service for customer details
-            MockResponse({
-                'fullname': 'John Doe',
-                'username': 'johndoe',
-                'wallet_balance': 1500.0
-            }, 200)
-        ]
-        # Mock post responses for deducting wallet balance and stock
-        mock_post.return_value = MockResponse({'message': 'Success'}, 200)
 
-        response = client.post('/make_sale', json={
-            'good_id': 1,
-            'customer_username': 'johndoe',
-            'quantity': 1
-        })
-        assert response.status_code == 200
-        data = json.loads(response.data)
-        assert data['message'] == 'Sale completed successfully'
-        # Verify purchase recorded
-        with app.app_context():
-            purchase = Purchase.query.first()
-            assert purchase is not None
-            assert purchase.customer_username == 'johndoe'
-            assert purchase.good_id == 1
-            assert purchase.quantity == 1
-            assert purchase.total_price == 1000.0
-
-def test_make_sale_insufficient_funds(client):
-    # Mock responses from other services
-    with patch('app.requests.get') as mock_get, \
-         patch('app.requests.post') as mock_post:
-        # Mock inventory_service response
-        mock_get.side_effect = [
-            # Good details
-            MockResponse({
-                'id': 1,
-                'name': 'Laptop',
-                'category': 'electronics',
-                'price_per_item': 1000.0,
-                'description': 'High-end laptop',
-                'stock_count': 5
-            }, 200),
-            # Customer details with insufficient funds
-            MockResponse({
-                'fullname': 'Jane Smith',
-                'username': 'janesmith',
-                'wallet_balance': 500.0
-            }, 200)
-        ]
-        response = client.post('/make_sale', json={
-            'good_id': 1,
-            'customer_username': 'janesmith',
-            'quantity': 1
-        })
-        assert response.status_code == 400
-        data = json.loads(response.data)
-        assert data['error'] == 'Insufficient funds'
-
-def test_purchase_history(client):
-    # Add a purchase directly to the database
-    with app.app_context():
-        purchase = Purchase(
-            customer_username='johndoe',
-            good_id=1,
-            quantity=2,
-            total_price=2000.0
-        )
-        db.session.add(purchase)
-        db.session.commit()
-    response = client.get('/purchase_history/johndoe')
+def test_index(client):
+    response = client.get('/')
     assert response.status_code == 200
-    data = json.loads(response.data)
+    assert response.get_json() == {'message': 'Sales Service is running'}
+
+
+def test_display_available_goods(client, requests_mock):
+    # Mock the Inventory Service response
+    requests_mock.get('http://localhost:5001/items', json=[
+        {'id': 1, 'name': 'Laptop', 'price': 1200.0},
+        {'id': 2, 'name': 'Smartphone', 'price': 799.99}
+    ])
+
+    # Call the Sales Service endpoint
+    response = client.get('/goods')
+    assert response.status_code == 200
+    data = response.get_json()
+    assert len(data) == 2
+    assert data[0]['name'] == 'Laptop'
+    assert data[1]['price'] == 799.99
+
+
+def test_process_sale_success(client, requests_mock):
+    # Mock Inventory Service
+    requests_mock.get('http://localhost:5001/items/1', json={
+        'id': 1,
+        'name': 'Laptop',
+        'price': 12.99,
+        'stock_count': 5,
+        'description': 'A high-end gaming laptop'
+    })
+    # Mock Customers Service
+    requests_mock.get('http://localhost:5000/customers/john_doe', json={
+        'username': 'john_doe',
+        'balance': 1500.0
+    })
+    # Mock Deduct Balance
+    requests_mock.post('http://localhost:5000/customers/john_doe/deduct', status_code=200)
+    # Mock Deduct Stock
+    requests_mock.post('http://localhost:5001/items/1/deduct', status_code=200)
+
+    # Process Sale
+    response = client.post('/sales', json={
+        'username': 'john_doe',
+        'item_id': 1,
+        'quantity': 1
+    })
+    print(response.get_json())  # Debugging: Display API response
+    assert response.status_code == 200
+    assert response.get_json()['message'] == 'Sale processed successfully'
+
+
+def test_get_purchase_history(client):
+    # Add a sale to the database
+    with app.app_context():
+        from models import Sale
+        new_sale = Sale(username='john_doe', item_id=1, quantity=1, total_price=1200.0)
+        db.session.add(new_sale)
+        db.session.commit()
+
+    response = client.get('/sales/history/john_doe')
+    assert response.status_code == 200
+    data = response.get_json()
     assert len(data) == 1
-    assert data[0]['good_id'] == 1
-    assert data[0]['quantity'] == 2
-    assert data[0]['total_price'] == 2000.0
+    assert data[0]['username'] == 'john_doe'
 
-# Helper class to mock responses
-class MockResponse:
-    def __init__(self, json_data, status_code):
-        self._json = json_data
-        self.status_code = status_code
 
-    def json(self):
-        return self._json
+def test_insufficient_balance(client, requests_mock):
+    requests_mock.get('http://localhost:5001/items/1', json={
+        'id': 1,
+        'name': 'Laptop',
+        'price': 1200.0,
+        'stock_count': 5
+    })
+    requests_mock.get('http://localhost:5000/customers/john_doe', json={
+        'username': 'john_doe',
+        'balance': 100.0  # Insufficient balance
+    })
 
-    def raise_for_status(self):
-        if self.status_code >= 400:
-            raise requests.exceptions.HTTPError(f'Status code: {self.status_code}')
+    response = client.post('/sales', json={
+        'username': 'john_doe',
+        'item_id': 1,
+        'quantity': 1
+    })
+    print(response.get_json())  # Debugging: Display API response
+    assert response.status_code == 400
+    assert response.get_json()['message'] == 'Insufficient balance'
