@@ -1,5 +1,4 @@
 # app.py
-# app.py
 
 from flask import Flask, request, jsonify
 from config import Config
@@ -30,6 +29,20 @@ def require_api_key(f):
 def add_item():
     """
     Add a new item to the inventory.
+
+    This endpoint allows authorized users to add a new item to the inventory.
+    
+    Parameters:
+        - JSON body:
+            - name (str): The name of the item.
+            - category (str): The category of the item (e.g., food, clothes, accessories, electronics).
+            - price (float): The price of the item.
+            - description (str, optional): A description of the item.
+            - stock_count (int): The number of items available in stock.
+
+    Returns:
+        - 201 Created: On successful addition of the item, with the item details in JSON format.
+        - 400 Bad Request: If any required fields are missing or invalid.
     """
     data = request.get_json()
     name = data.get('name')
@@ -74,6 +87,15 @@ def get_items():
 def get_item(item_id):
     """
     Get details of a specific item.
+
+    This endpoint retrieves the details of an item using its unique ID.
+
+    Parameters:
+        - item_id (int): The unique ID of the item.
+
+    Returns:
+        - 200 OK: Item details in JSON format.
+        - 404 Not Found: If no item exists with the given ID.
     """
     item = Item.query.get(item_id)
     if not item:

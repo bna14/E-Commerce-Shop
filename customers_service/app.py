@@ -17,6 +17,23 @@ ma.init_app(app)
 def register_customer():
     """
     Register a new customer.
+
+    This endpoint allows you to register a new customer by providing their details.
+    
+    Parameters:
+        - JSON body:
+            - username (str): The unique username of the customer.
+            - password (str): The password for the customer account.
+            - first_name (str): The first name of the customer.
+            - last_name (str): The last name of the customer.
+            - age (int): The age of the customer.
+            - address (str): The address of the customer.
+            - gender (str): The gender of the customer.
+            - marital_status (bool): The marital status of the customer.
+
+    Returns:
+        - 201 Created: On successful registration with the customer details in JSON format.
+        - 400 Bad Request: If any required fields are missing or invalid.
     """
     data = request.get_json()
     errors = customer_schema.validate(data)
@@ -51,6 +68,15 @@ def register_customer():
 def get_customer(username):
     """
     Get customer details by username.
+
+    This endpoint retrieves the details of a specific customer using their username.
+    
+    Parameters:
+        - username (str): The unique username of the customer.
+
+    Returns:
+        - 200 OK: Customer details in JSON format.
+        - 404 Not Found: If no customer exists with the given username.
     """
     customer = Customer.query.filter_by(username=username).first()
     if not customer:
