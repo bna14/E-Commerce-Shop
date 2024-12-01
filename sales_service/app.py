@@ -34,6 +34,16 @@ CUSTOMERS_SERVICE_URL = 'http://localhost:5000'
 
 @app.route('/goods', methods=['GET'])
 def display_available_goods():
+    """
+    Display available goods with their names and prices.
+
+    Fetches goods from the Inventory Service and filters their details 
+    to include only name, price, and ID.
+
+    Returns:
+        list: A JSON list of goods with `id`, `name`, and `price`.
+        status_code (int): HTTP status code, 200 for success or an error code.
+    """ 
     logger.info("Fetching available goods from Inventory Service.")
     try:
         response = requests.get(f'{INVENTORY_SERVICE_URL}/items')
@@ -51,6 +61,18 @@ def display_available_goods():
 
 @app.route('/goods/<int:item_id>', methods=['GET'])
 def get_goods_details(item_id):
+    """
+    Get detailed information about a specific good.
+
+    URL parameter:
+    - item_id: ID of the item
+
+    Returns:
+    - 200: Item details
+    - 404: Item not found
+    - 500: Unable to fetch item details
+    - 503: Inventory Service is not available
+    """
     logger.info(f"Fetching details for item ID: {item_id}")
     try:
         response = requests.get(f'{INVENTORY_SERVICE_URL}/items/{item_id}')
@@ -70,6 +92,21 @@ def get_goods_details(item_id):
 
 @app.route('/sales', methods=['POST'])
 def process_sale():
+    """
+    Process a sale when a customer purchases a good.
+
+    Request JSON should contain:
+    - username: Username of the customer
+    - item_id: ID of the item being purchased
+    - quantity: Quantity of the item being purchased (default is 1)
+
+    Returns:
+    - 200: Sale processed successfully
+    - 400: Missing required fields, insufficient stock, or insufficient balance
+    - 404: Item or customer not found
+    - 500: Failed to deduct balance or stock
+    - 503: Inventory Service is not available
+    """
     logger.info("Processing a sale request.")
     data = request.get_json()
     username = data.get('username')
@@ -146,6 +183,16 @@ def process_sale():
 
 @app.route('/sales/history/<username>', methods=['GET'])
 def get_purchase_history(username):
+    """
+    Get the purchase history for a specific customer.
+
+    URL parameter:
+    - username: Username of the customer
+
+    Returns:
+    - 200: List of purchase history
+    - 404: No purchase history found for the user
+    """
     logger.info(f"Fetching purchase history for username: {username}.")
     sales = Sale.query.filter_by(username=username).all()
     if sales:
@@ -158,6 +205,12 @@ def get_purchase_history(username):
 
 @app.route('/', methods=['GET'])
 def index():
+    """
+    Health check endpoint.
+
+    Returns:
+    - 200: Service is running
+    """
     logger.info("Health check: Sales Service is running.")
     return jsonify({'message': 'Sales Service is running'}), 200
 
