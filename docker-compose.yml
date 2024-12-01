@@ -1,0 +1,36 @@
+services:
+  customers_service:
+    build: ./customers_service
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./customers_service:/app
+    environment:
+      - FLASK_ENV=development
+
+  inventory_service:
+    build: ./inventory_service
+    ports:
+      - "5001:5001"
+    volumes:
+      - ./inventory_service:/app
+    environment:
+      - FLASK_ENV=development
+
+  reviews_service:
+    build: ./reviews_service
+    ports:
+      - "5002:5002"
+    volumes:
+      - ./reviews_service:/app
+    environment:
+      - FLASK_ENV=development
+
+  sales_service:
+    build: ./sales_service
+    ports:
+      - "5003:5003"
+    volumes:
+      - ./sales_service:/app
+    environment:
+      - FLASK_ENV=development

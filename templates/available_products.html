@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Available Products</title>
+  </head>
+  <body>
+    <h1>Available Products</h1>
+    <ul>
+      <!-- Loop through available products -->
+      {% for product in products %}
+      <li>
+        Product Name: {{ product[2] }} - Price: ${{ product[3] }}
+        <!-- Assuming name is at index 2, price is at index 3 -->
+        <a href="/product_details/{{ product[0] }}">Details</a>
+        <!-- Product link to details page -->
+      </li>
+      {% endfor %}
+    </ul>
+  </body>
+</html>

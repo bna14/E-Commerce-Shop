@@ -1,0 +1,182 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sales Service &mdash; E-Commerce-Roni-Bahaa  documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=80d5e7a1" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=e59714d7" />
+
+  
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=5929fcd5"></script>
+      <script src="_static/doctools.js?v=9bcbadda"></script>
+      <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="prev" title="Reviews Service" href="reviews_service.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            E-Commerce-Roni-Bahaa
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Services:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="customers_service.html">Customers Service</a></li>
+<li class="toctree-l1"><a class="reference internal" href="inventory_service.html">Inventory Service</a></li>
+<li class="toctree-l1"><a class="reference internal" href="reviews_service.html">Reviews Service</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Sales Service</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#app.display_available_goods"><code class="docutils literal notranslate"><span class="pre">display_available_goods()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#app.get_goods_details"><code class="docutils literal notranslate"><span class="pre">get_goods_details()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#app.get_purchase_history"><code class="docutils literal notranslate"><span class="pre">get_purchase_history()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#app.index"><code class="docutils literal notranslate"><span class="pre">index()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#app.process_sale"><code class="docutils literal notranslate"><span class="pre">process_sale()</span></code></a></li>
+</ul>
+</li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">E-Commerce-Roni-Bahaa</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Sales Service</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/sales_service.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="module-app">
+<span id="sales-service"></span><h1>Sales Service<a class="headerlink" href="#module-app" title="Link to this heading"></a></h1>
+<dl class="py function">
+<dt class="sig sig-object py" id="app.display_available_goods">
+<span class="sig-prename descclassname"><span class="pre">app.</span></span><span class="sig-name descname"><span class="pre">display_available_goods</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/app.html#display_available_goods"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#app.display_available_goods" title="Link to this definition"></a></dt>
+<dd><p>Display available goods with their names and prices.</p>
+<p>Fetches goods from the Inventory Service and filters their details
+to include only name, price, and ID.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>A JSON list of goods with <cite>id</cite>, <cite>name</cite>, and <cite>price</cite>.
+status_code (int): HTTP status code, 200 for success or an error code.</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>list</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="app.get_goods_details">
+<span class="sig-prename descclassname"><span class="pre">app.</span></span><span class="sig-name descname"><span class="pre">get_goods_details</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">item_id</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/app.html#get_goods_details"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#app.get_goods_details" title="Link to this definition"></a></dt>
+<dd><p>Get detailed information about a specific good.</p>
+<p>URL parameter:
+- item_id: ID of the item</p>
+<p>Returns:
+- 200: Item details
+- 404: Item not found
+- 500: Unable to fetch item details
+- 503: Inventory Service is not available</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="app.get_purchase_history">
+<span class="sig-prename descclassname"><span class="pre">app.</span></span><span class="sig-name descname"><span class="pre">get_purchase_history</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">username</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/app.html#get_purchase_history"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#app.get_purchase_history" title="Link to this definition"></a></dt>
+<dd><p>Get the purchase history for a specific customer.</p>
+<p>URL parameter:
+- username: Username of the customer</p>
+<p>Returns:
+- 200: List of purchase history
+- 404: No purchase history found for the user</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="app.index">
+<span class="sig-prename descclassname"><span class="pre">app.</span></span><span class="sig-name descname"><span class="pre">index</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/app.html#index"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#app.index" title="Link to this definition"></a></dt>
+<dd><p>Health check endpoint.</p>
+<p>Returns:
+- 200: Service is running</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="app.process_sale">
+<span class="sig-prename descclassname"><span class="pre">app.</span></span><span class="sig-name descname"><span class="pre">process_sale</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/app.html#process_sale"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#app.process_sale" title="Link to this definition"></a></dt>
+<dd><p>Process a sale when a customer purchases a good.</p>
+<p>Request JSON should contain:
+- username: Username of the customer
+- item_id: ID of the item being purchased
+- quantity: Quantity of the item being purchased (default is 1)</p>
+<p>Returns:
+- 200: Sale processed successfully
+- 400: Missing required fields, insufficient stock, or insufficient balance
+- 404: Item or customer not found
+- 500: Failed to deduct balance or stock
+- 503: Inventory Service is not available</p>
+</dd></dl>
+
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="reviews_service.html" class="btn btn-neutral float-left" title="Reviews Service" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024, Roni-Bahaa.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
